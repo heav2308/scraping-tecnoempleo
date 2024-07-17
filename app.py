@@ -4,7 +4,6 @@ import csv
 from tqdm import tqdm
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import concurrent.futures
 
 # Función para obtener el número de CVs inscritos en el proceso
 def obtener_num_cvs(divs):
@@ -17,7 +16,7 @@ def obtener_num_cvs(divs):
                 return match.group()
     return ''  # Retorna vacío si no se encuentra el número de CVs
 
-# Función para obtener todos los enlaces de las ofertas de una página
+# Función para obtener los enlaces de las ofertas de una página
 def obtener_enlaces_pagina(url):
     try:
         response = requests.get(url)
@@ -29,6 +28,29 @@ def obtener_enlaces_pagina(url):
         print(f"Error al acceder a la página {url}: {e}")
         return []
 
+# Función para obtener la información específica de cada oferta de empleo
+def obtener_informacion_especifica(soup):
+    # Encuentra la sección usando el selector de BeautifulSoup equivalente al XPath proporcionado
+    section = soup.select_one('#wrapper > section:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(2)')
+
+    if section:
+        # Encuentra todos los elementos con la clase específica
+        list_items = section.find_all('li', class_='list-item clearfix border-bottom py-2')
+
+        # Lista para almacenar los datos específicos
+        specific_data = []
+
+        # Itera sobre los elementos y extrae el contenido del span con la clase float-end
+        for item in list_items:
+            span = item.find('span', class_='float-end')
+            if span:
+                data = span.text.strip()
+                specific_data.append(data)
+
+        return specific_data
+    else:
+        return None
+
 # Función para procesar una oferta de empleo individual
 def procesar_oferta(url):
     try:
@@ -36,15 +58,21 @@ def procesar_oferta(url):
         response.raise_for_status()  # Verificar que la solicitud fue exitosa
         soup = BeautifulSoup(response.text, 'html.parser')
 
+        # Obtener el título de la oferta
         title = soup.find('h1').get_text(strip=True)
 
+        # Obtener la información específica usando la función definida anteriormente
+        specific_info = obtener_informacion_especifica(soup)
+
+        # Obtener el número de CVs inscritos en el proceso
         divs = soup.find_all('div', class_="d-flex py-2")
         num_cvs = obtener_num_cvs(divs)
 
-        return {'Título': title, 'Enlace': url, 'CVs inscritos': num_cvs}
+        return {'Título': title, 'Enlace': url, 'CVs inscritos': num_cvs, 'Información específica': specific_info}
+    
     except requests.exceptions.HTTPError as e:
         print(f"Error al acceder a la página {url}: {e}")
-        return {'Título': 'Oferta no disponible', 'Enlace': url, 'CVs inscritos': ''}
+        return {'Título': 'Oferta no disponible', 'Enlace': url, 'CVs inscritos': '', 'Información específica': None}
 
 # Función principal para realizar el scraping de Tecnoempleo
 def scrape_tecnoempleo(num_paginas):
@@ -73,7 +101,7 @@ def scrape_tecnoempleo(num_paginas):
 
     # Escribir los datos en el archivo CSV
     with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
-        fieldnames = ['Título', 'Enlace', 'CVs inscritos']
+        fieldnames = ['Título', 'Enlace', 'CVs inscritos', 'Información específica']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
 
         writer.writeheader()  # Escribir la cabecera (nombres de las columnas)
