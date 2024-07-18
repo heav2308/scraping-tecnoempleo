@@ -4,13 +4,13 @@ import csv
 from tqdm import tqdm
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 
 # Función para obtener el número de CVs inscritos en el proceso
 def obtener_num_cvs(divs):
     for div in divs:
         p_tag = div.find('p', class_='m-0')
         if p_tag and 'CVs inscritos en el proceso:' in p_tag.text:
-            import re
             match = re.search(r'\d+', p_tag.text)
             if match:
                 return match.group()
@@ -76,6 +76,15 @@ def procesar_oferta(url):
         divs = soup.find_all('div', class_="d-flex py-2")
         num_cvs = obtener_num_cvs(divs)
 
+        salario_min = ''
+        salario_max = ''
+        if specific_info and specific_info.get('Salario'):
+            salario = specific_info['Salario']
+            match = re.findall(r'[\d\.]+', salario.replace('.', '').replace('€', '').replace(',', ''))
+            if len(match) == 2:
+                salario_min = int(match[0])
+                salario_max = int(match[1])
+
         return {
             'Título': title, 
             'Enlace': url, 
@@ -85,7 +94,8 @@ def procesar_oferta(url):
             'Jornada': specific_info.get('Jornada', '') if specific_info else '',
             'Experiencia': specific_info.get('Experiencia', '') if specific_info else '',
             'Tipo contrato': specific_info.get('Tipo contrato', '') if specific_info else '',
-            'Salario': specific_info.get('Salario', '') if specific_info else ''
+            'Salario Mínimo': salario_min,
+            'Salario Máximo': salario_max
         }
     
     except requests.exceptions.HTTPError as e:
@@ -99,7 +109,8 @@ def procesar_oferta(url):
             'Jornada': '', 
             'Experiencia': '', 
             'Tipo contrato': '', 
-            'Salario': ''
+            'Salario Mínimo': '', 
+            'Salario Máximo': ''
         }
 
 # Función principal para realizar el scraping de Tecnoempleo
@@ -124,7 +135,8 @@ def scrape_tecnoempleo(num_paginas):
         fieldnames = [
             'Título', 'Enlace', 'CVs inscritos', 
             'Ubicación', 'Funciones', 'Jornada', 
-            'Experiencia', 'Tipo contrato', 'Salario'
+            'Experiencia', 'Tipo contrato', 
+            'Salario Mínimo', 'Salario Máximo'
         ]
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
