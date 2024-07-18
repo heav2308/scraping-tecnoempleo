@@ -32,16 +32,18 @@ def obtener_enlaces_pagina(url):
 def obtener_informacion_especifica(soup):
     section = soup.select_one('#wrapper > section:nth-of-type(2) > div:nth-of-type(1) > div > div:nth-of-type(2)')
 
+    specific_data = {
+        'Ubicación': '',
+        'Funciones': '',
+        'Jornada': '',
+        'Experiencia': '',
+        'Tipo contrato': '',
+        'Salario': '',
+        'Descripción': ''
+    }
+
     if section:
         list_items = section.find_all('li', class_='list-item clearfix border-bottom py-2')
-        specific_data = {
-            'Ubicación': '',
-            'Funciones': '',
-            'Jornada': '',
-            'Experiencia': '',
-            'Tipo contrato': '',
-            'Salario': ''
-        }
 
         for item in list_items:
             span = item.find('span', class_='float-end')
@@ -60,8 +62,31 @@ def obtener_informacion_especifica(soup):
                 elif 'Salario' in item.text:
                     specific_data['Salario'] = data
 
-        return specific_data
+    # Obtener la descripción
+    descripcion = ' '.join([p.text.strip() for p in soup.find_all('p', class_='fs--16 text-gray-800')])
+    specific_data['Descripción'] = descripcion
+
+    return specific_data
+
+# Función para convertir la experiencia a un valor numérico
+def convertir_experiencia(experiencia):
+    if experiencia is None:
+        return None
+    experiencia = experiencia.lower()
+    if 'más de 10 años' in experiencia:
+        return 10
+    elif 'más de 5 años' in experiencia:
+        return 5
+    elif '3-5 años' in experiencia:
+        return 4  # Tomamos el punto medio del rango
+    elif 'menos de un año' in experiencia:
+        return 0
+    elif 'sin experiencia' in experiencia:
+        return 0
     else:
+        match = re.search(r'\d+', experiencia)
+        if match:
+            return int(match.group())
         return None
 
 # Función para procesar una oferta de empleo individual
@@ -85,6 +110,8 @@ def procesar_oferta(url):
                 salario_min = int(match[0])
                 salario_max = int(match[1])
 
+        experiencia = convertir_experiencia(specific_info.get('Experiencia', '')) if specific_info else None
+
         return {
             'Título': title, 
             'Enlace': url, 
@@ -92,10 +119,11 @@ def procesar_oferta(url):
             'Ubicación': specific_info.get('Ubicación', '') if specific_info else '',
             'Funciones': specific_info.get('Funciones', '') if specific_info else '',
             'Jornada': specific_info.get('Jornada', '') if specific_info else '',
-            'Experiencia': specific_info.get('Experiencia', '') if specific_info else '',
+            'Experiencia': experiencia,
             'Tipo contrato': specific_info.get('Tipo contrato', '') if specific_info else '',
             'Salario Mínimo': salario_min,
-            'Salario Máximo': salario_max
+            'Salario Máximo': salario_max,
+            'Descripción': specific_info.get('Descripción', '') if specific_info else ''
         }
     
     except requests.exceptions.HTTPError as e:
@@ -110,7 +138,8 @@ def procesar_oferta(url):
             'Experiencia': '', 
             'Tipo contrato': '', 
             'Salario Mínimo': '', 
-            'Salario Máximo': ''
+            'Salario Máximo': '',
+            'Descripción': ''
         }
 
 # Función principal para realizar el scraping de Tecnoempleo
@@ -136,7 +165,8 @@ def scrape_tecnoempleo(num_paginas):
             'Título', 'Enlace', 'CVs inscritos', 
             'Ubicación', 'Funciones', 'Jornada', 
             'Experiencia', 'Tipo contrato', 
-            'Salario Mínimo', 'Salario Máximo'
+            'Salario Mínimo', 'Salario Máximo',
+            'Descripción'
         ]
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
@@ -145,4 +175,4 @@ def scrape_tecnoempleo(num_paginas):
             writer.writerow(data)
 
 # Ejecutar el scraping de las primeras 200 páginas
-scrape_tecnoempleo(200)
+scrape_tecnoempleo(2)
