@@ -175,4 +175,4 @@ def scrape_tecnoempleo(num_paginas):
             writer.writerow(data)
 
 # Ejecutar el scraping de las primeras 200 páginas
-scrape_tecnoempleo(2)
+scrape_tecnoempleo(200)
